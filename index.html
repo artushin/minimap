@@ -170,29 +170,29 @@
 		let coordinates = [
 			{
 				id: 'foo',
-				latitude: 37.7749,
-				longitude: -122.4194,
+				latitude: 32.772652,
+				longitude: -117.246941,
 				color: '#FF6B6B',
 				velocity: { lat: 0, lng: 0 }
 			},
 			{
 				id: 'bar',
-				latitude: 37.774905,
-				longitude: -122.419395,
+				latitude: 32.77265205,
+				longitude: -117.246941,
 				color: '#4ECDC4',
 				velocity: { lat: 0, lng: 0 }
 			},
 			{
 				id: 'baz',
-				latitude: 37.774895,
-				longitude: -122.419405,
+				latitude: 32.772652,
+				longitude: -117.246941,
 				color: '#45B7D1',
 				velocity: { lat: 0, lng: 0 }
 			},
 			{
 				id: 'qux',
-				latitude: 37.77491,
-				longitude: -122.41941,
+				latitude: 32.7726521,
+				longitude: -117.246941,
 				color: '#96CEB4',
 				velocity: { lat: 0, lng: 0 }
 			}
@@ -222,14 +222,14 @@
 					},
 					(error) => {
 						console.warn('Geolocation failed:', error);
-						// Use default location (San Francisco)
-						userLocation = { lat: 37.7749, lng: -122.4194 };
+						// Use default location (San Diego)
+						userLocation = { lat: 32.772652, lng: -117.246941 };
 						setupMap(userLocation);
 					}
 				);
 			} else {
 				// Browser doesn't support geolocation
-				userLocation = { lat: 37.7749, lng: -122.4194 };
+				userLocation = { lat: 32.772652, lng: -117.246941 };
 				setupMap(userLocation);
 			}
 		}
