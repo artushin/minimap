@@ -253,31 +253,33 @@
 					// Base geometry - dark blue/gray but visible
 					{ elementType: 'geometry', stylers: [{ color: '#1a2530' }] },
 
-					// Water - dark blue but distinguishable
-					{ featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1824' }] },
+					// Water - much darker blue for strong contrast
+					{ featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a1015' }] },
 
-					// Land/terrain - dark military green/gray
-					{ featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#1f2b30' }] },
-					{ featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#242f35' }] },
+					// Land/terrain - medium gray
+					{ featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#25303a' }] },
 
-					// Parks - slightly lighter green
-					{ featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263338' }] },
+					// Man-made landscape - lighter gray/tan for clear distinction
+					{ featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#3a4550' }] },
 
-					// Roads - visible dark gray lines
-					{ featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2a3845' }] },
-					{ featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a35', weight: 0.5 }] },
+					// Parks - distinct green tint
+					{ featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a3020' }] },
 
-					// Highways slightly brighter
-					{ featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#334455' }] },
-					{ featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1a2530', weight: 0.5 }] },
+					// Roads - visible medium gray
+					{ featureType: 'road', elementType: 'geometry', stylers: [{ color: '#3a4550' }] },
+					{ featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#252f3a', weight: 0.5 }] },
 
-					// Buildings - visible but subtle
-					{ featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#283540' }] },
-					{ featureType: 'poi.business', elementType: 'geometry', stylers: [{ color: '#2a3742' }] },
+					// Highways brighter for visibility
+					{ featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4a5565' }] },
+					{ featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#2a3540', weight: 0.5 }] },
+
+					// Buildings - lighter to distinguish from natural terrain
+					{ featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#3a4555' }] },
+					{ featureType: 'poi.business', elementType: 'geometry', stylers: [{ color: '#404a5a' }] },
 
 					// Transit
-					{ featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2a3845' }] },
-					{ featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#283540' }] },
+					{ featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#3a4555' }] },
+					{ featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#404a5a' }] },
 
 					// Administrative boundaries - subtle but visible
 					{ featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#4a5560', weight: 0.5 }] },
@@ -346,7 +348,6 @@
 
 				// Check if this coordinate is outside current bounds
 				if (currentBounds && !shrinkBounds(currentBounds, 0.1).contains(position)) {
-					console.log('here');
 					needsRefit = true;
 				}
 
