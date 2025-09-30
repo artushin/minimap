@@ -164,7 +164,7 @@
 		let markers = {};
 		let userLocation = null;
 		let animationInterval;
-		const UPDATE_INTERVAL = 600; // Update every 100ms for smooth movement
+		const UPDATE_INTERVAL = 50; // Update every 100ms for smooth movement
 
 		// Initial coordinates - tightly clustered
 		let coordinates = [
@@ -311,6 +311,31 @@
 			});
 		}
 
+		function shrinkBounds(bounds, percentage) {
+			const ne = bounds.getNorthEast();
+			const sw = bounds.getSouthWest();
+
+			// Calculate the dimensions
+			const latRange = ne.lat() - sw.lat();
+			const lngRange = ne.lng() - sw.lng();
+
+			// Calculate the inset amount (10% = 0.1)
+			const latInset = latRange * percentage;
+			const lngInset = lngRange * percentage;
+
+			// Create new bounds with the inset applied
+			const newSW = new google.maps.LatLng(
+				sw.lat() + latInset,
+				sw.lng() + lngInset
+			);
+			const newNE = new google.maps.LatLng(
+				ne.lat() - latInset,
+				ne.lng() - lngInset
+			);
+
+			return new google.maps.LatLngBounds(newSW, newNE);
+		}
+
 		function updateMarkers() {
 			// Check if any coordinate is outside current bounds
 			const currentBounds = map.getBounds();
@@ -320,7 +345,8 @@
 				const position = { lat: coord.latitude, lng: coord.longitude };
 
 				// Check if this coordinate is outside current bounds
-				if (currentBounds && !currentBounds.contains(position)) {
+				if (currentBounds && !shrinkBounds(currentBounds, 0.1).contains(position)) {
+					console.log('here');
 					needsRefit = true;
 				}
 
@@ -382,7 +408,7 @@
 					// At equator: 1 degree latitude = 111,139 meters
 					// So 0.5 meters = 0.0000045 degrees
 					// This gives us movement of about 0.5 meters per second
-					const speed = 0.0000045 / 10; // Divide by 10 for 100ms intervals
+					const speed = 0.0000145 / 10; // Divide by 10 for 100ms intervals
 
 					// Random direction
 					const angle = Math.random() * 2 * Math.PI;
@@ -410,6 +436,7 @@
 				getCoordinateUpdates();
 				updateMarkers();
 			}, UPDATE_INTERVAL);
+			50
 		}
 
 		// Initialize everything when the page loads
