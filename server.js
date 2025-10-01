@@ -38,7 +38,15 @@ async function getCallbackUrls() {
 			res.on('end', () => {
 				try {
 					const parsed = JSON.parse(data);
-					resolve(parsed);
+					resolve({
+						// msCtrlCallBackUrl: parsed.msCtrlCallBackUrl,
+						msCtrlCallBackUrl: parsed.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', ''),
+						// ctrlCallbackUrl: parsed.ctrlCallbackUrl,
+						ctrlCallbackUrl: parsed.ctrlCallbackUrl.replace('https', 'http').replace('8443/p/', ''),
+						hlsEgressUrl: parsed.hlsEgressUrl,
+						ngxIngressBaseUrl: parsed.ngxIngressBaseUrl,
+						rtmpIngressUrl: parsed.rtmpIngressUrl,
+					});
 				} catch (error) {
 					reject(new Error(`Failed to parse JSON: ${error.message}`));
 				}
@@ -64,14 +72,11 @@ function generatePayload(callbackUrls, qrCodeId, port) {
 			"options": {},
 			"widgets": [
 				{
-					"url": `http://${MY_IP}:${port}/widget`,
-					// "url": `http://${WIDGET_IP}:${port}/widget`,
+					"url": `http://${WIDGET_IP}:${port}`,
 					"headers": {
 						"x-stream-id": qrCodeId,
-						// "x-ms-ctrl-callback-url": callbackUrls.msCtrlCallBackUrl,
-						"x-ms-ctrl-callback-url": `${callbackUrls.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', '')}`,
-						// "x-ctrl-callback-url": callbackUrls.ctrlCallbackUrl,
-						"x-ctrl-callback-url": `${callbackUrls.ctrlCallbackUrl.replace('https', 'http').replace('8443/p/', '')}`,
+						"x-ms-ctrl-callback-url": callbackUrls.msCtrlCallBackUrl,
+						"x-ctrl-callback-url": callbackUrls.ctrlCallbackUrl,
 					},
 					"key": "1",
 					"cookies": []
@@ -82,8 +87,7 @@ function generatePayload(callbackUrls, qrCodeId, port) {
 			"locationHref": `http://${MEDIA_IP}:8084/foundation-transcode/shmcli/api/v1/settrack`
 		},
 		"stun_urls": ["stun:icf-prod-usw2b-turn.livelyvideo.tv:19302"],
-		// "whip": `${callbackUrls.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', '')}/api/v1/whip/create/${qrCodeId}`
-		"whip": `${callbackUrls.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', '')}/api/v1/whip/create/${qrCodeId}`
+		"whip": `${callbackUrls.msCtrlCallBackUrl}/api/v1/whip/create/${qrCodeId}`
 	};
 }
 
@@ -161,7 +165,10 @@ function createServer(port = 3000) {
 
 		// Serve minimap page
 		if (url.pathname === '/minimap') {
-			serveHtml(path.join(__dirname, 'minimap.html'), {}, res);
+			const templateVars = {
+				UPDATE_URL: `${callbackUrls.ctrlCallbackUrl}/api/v1/streams`
+			};
+			serveHtml(path.join(__dirname, 'minimap.html'), templateVars, res);
 			return;
 		}
 

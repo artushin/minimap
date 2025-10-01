@@ -155,10 +155,12 @@
 	<script>
 		// Replace with your actual Google Maps API key
 		const GOOGLE_MAPS_API_KEY = 'AIzaSyATFVb_BO1HhFGZ8m0PMe7uy2F4T2KW6ZQ';
+		const UPDATES_URL = '{{UPDATE_URL}}';
 
 		// Configuration
 		const INITIAL_ZOOM = 20; // Good balance for seeing detail and area
 		const MIN_ZOOM = 14; // Minimum zoom when fitting bounds
+		const POLL_INTERVAL = 500; // Poll for updates every second
 
 		let map;
 		let markers = {};
@@ -166,37 +168,11 @@
 		let animationInterval;
 		const UPDATE_INTERVAL = 50; // Update every 100ms for smooth movement
 
-		// Initial coordinates - tightly clustered
-		let coordinates = [
-			{
-				id: 'foo',
-				latitude: 32.772652,
-				longitude: -117.246941,
-				color: '#FF6B6B',
-				velocity: { lat: 0, lng: 0 }
-			},
-			{
-				id: 'bar',
-				latitude: 32.77265205,
-				longitude: -117.246941,
-				color: '#4ECDC4',
-				velocity: { lat: 0, lng: 0 }
-			},
-			{
-				id: 'baz',
-				latitude: 32.772652,
-				longitude: -117.246941,
-				color: '#45B7D1',
-				velocity: { lat: 0, lng: 0 }
-			},
-			{
-				id: 'qux',
-				latitude: 32.7726521,
-				longitude: -117.246941,
-				color: '#96CEB4',
-				velocity: { lat: 0, lng: 0 }
-			}
-		];
+		// Initial coordinates - loaded from server
+		let coordinates = [];
+
+		// Color palette for coordinate points
+		const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFA07A', '#98D8C8', '#F7B731', '#5F27CD'];
 
 		// Load Google Maps API
 		function loadGoogleMaps() {
@@ -207,31 +183,96 @@
 			document.head.appendChild(script);
 		}
 
-		// Initialize the map
-		function initMap() {
-			// Try to get user's location
-			if (navigator.geolocation) {
-				navigator.geolocation.getCurrentPosition(
-					(position) => {
-						userLocation = {
-							lat: position.coords.latitude,
-							lng: position.coords.longitude
-						};
-						setupMap(userLocation);
-						initializeCoordinatesNearUser();
-					},
-					(error) => {
-						console.warn('Geolocation failed:', error);
-						// Use default location (San Diego)
-						userLocation = { lat: 32.772652, lng: -117.246941 };
-						setupMap(userLocation);
-					}
-				);
-			} else {
-				// Browser doesn't support geolocation
-				userLocation = { lat: 32.772652, lng: -117.246941 };
-				setupMap(userLocation);
+		// Fetch coordinates from server
+		async function fetchCoordinates() {
+			try {
+				const response = await fetch(UPDATES_URL);
+				if (!response.ok) {
+					throw new Error(`HTTP error! status: ${response.status}`);
+				}
+				const data = await response.json();
+				return parseCoordinatesFromResponse(data);
+			} catch (error) {
+				console.error('Error fetching coordinates:', error);
+				return [];
 			}
+		}
+
+		// Parse coordinates from the API response
+		function parseCoordinatesFromResponse(data) {
+			if (!data.streams) return [];
+
+			// Filter for video streams only
+			const videoStreams = data.streams.filter(stream => stream.mediaType === 'video');
+
+			const coords = [];
+			videoStreams.forEach((stream, index) => {
+				if (!stream.appData) return;
+
+				try {
+					const appData = JSON.parse(stream.appData);
+					if (appData.latitude !== undefined && appData.longitude !== undefined) {
+						// Find existing coordinate or create new one
+						const existingCoord = coordinates.find(c => c.id === stream.streamName);
+						const color = existingCoord ? existingCoord.color : COLORS[index % COLORS.length];
+
+						coords.push({
+							id: stream.streamName,
+							latitude: appData.latitude,
+							longitude: appData.longitude,
+							color: color,
+							velocity: existingCoord ? existingCoord.velocity : { lat: 0, lng: 0 }
+						});
+					}
+				} catch (error) {
+					console.error('Error parsing appData for stream:', stream.streamName, error);
+				}
+			});
+
+			if (coords[0]) {
+				console.log(coords[0].latitude, coords[0].longitude);
+			}
+			return coords;
+		}
+
+		// Initialize the map
+		async function initMap() {
+			// Load initial coordinates
+			coordinates = await fetchCoordinates();
+
+			// Determine initial center
+			if (coordinates.length > 0) {
+				// Center on first coordinate
+				userLocation = {
+					lat: coordinates[0].latitude,
+					lng: coordinates[0].longitude
+				};
+				setupMap(userLocation);
+			} else {
+				// Try to get user's location or use default
+				if (navigator.geolocation) {
+					navigator.geolocation.getCurrentPosition(
+						(position) => {
+							userLocation = {
+								lat: position.coords.latitude,
+								lng: position.coords.longitude
+							};
+							setupMap(userLocation);
+						},
+						(error) => {
+							console.warn('Geolocation failed:', error);
+							userLocation = { lat: 32.772652, lng: -117.246941 };
+							setupMap(userLocation);
+						}
+					);
+				} else {
+					userLocation = { lat: 32.772652, lng: -117.246941 };
+					setupMap(userLocation);
+				}
+			}
+
+			// Start polling for updates
+			startPolling();
 		}
 
 		function setupMap(center) {
@@ -289,28 +330,6 @@
 
 			// Initialize coordinate markers
 			updateMarkers();
-
-			// Start animation
-			startAnimation();
-		}
-
-		function initializeCoordinatesNearUser() {
-			// Place all coordinates in a tight cluster near the user
-			const baseLat = userLocation.lat;
-			const baseLng = userLocation.lng;
-
-			// Very small offset for tight clustering (about 1-2 meters apart)
-			coordinates = coordinates.map((coord, index) => {
-				const offsetLat = (index % 2) * 0.00001 - 0.000005;
-				const offsetLng = (Math.floor(index / 2)) * 0.00001 - 0.000005;
-
-				return {
-					...coord,
-					latitude: baseLat + offsetLat,
-					longitude: baseLng + offsetLng,
-					velocity: { lat: 0, lng: 0 }
-				};
-			});
 		}
 
 		function shrinkBounds(bounds, percentage) {
@@ -400,44 +419,31 @@
 			});
 		}
 
-		// Simulate slow walking speed (1-2 feet per second)
-		function getCoordinateUpdates() {
-			coordinates = coordinates.map(coord => {
-				// Change direction occasionally (every ~5 seconds on average)
-				if (Math.random() < 0.02) { // 2% chance per 100ms update
-					// 1-2 feet per second = 0.3-0.6 meters per second
-					// At equator: 1 degree latitude = 111,139 meters
-					// So 0.5 meters = 0.0000045 degrees
-					// This gives us movement of about 0.5 meters per second
-					const speed = 0.0000145 / 10; // Divide by 10 for 100ms intervals
+		// Poll for coordinate updates
+		async function pollCoordinates() {
+			const newCoordinates = await fetchCoordinates();
 
-					// Random direction
-					const angle = Math.random() * 2 * Math.PI;
-					coord.velocity = {
-						lat: Math.cos(angle) * speed,
-						lng: Math.sin(angle) * speed
-					};
+			// Update coordinates - replace entirely with new data
+			coordinates = newCoordinates;
+
+			// Remove markers that are no longer in the coordinate list
+			const currentIds = new Set(coordinates.map(c => c.id));
+			Object.keys(markers).forEach(id => {
+				if (!currentIds.has(id)) {
+					markers[id].setMap(null);
+					delete markers[id];
 				}
-
-				// Apply velocity with some randomness for natural movement
-				const randomFactor = 0.8 + Math.random() * 0.4; // 80% to 120% of velocity
-
-				return {
-					...coord,
-					latitude: coord.latitude + coord.velocity.lat * randomFactor,
-					longitude: coord.longitude + coord.velocity.lng * randomFactor
-				};
 			});
 
-			return coordinates;
+			// Update remaining/new markers
+			if (coordinates.length > 0) {
+				updateMarkers();
+			}
 		}
 
-		function startAnimation() {
-			animationInterval = setInterval(() => {
-				getCoordinateUpdates();
-				updateMarkers();
-			}, UPDATE_INTERVAL);
-			50
+		function startPolling() {
+			// Poll for updates at regular intervals
+			setInterval(pollCoordinates, POLL_INTERVAL);
 		}
 
 		// Initialize everything when the page loads
