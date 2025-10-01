@@ -4,6 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 
+const MY_IP =  '10.51.80.7';
+const MEDIA_IP =  '10.51.80.25';
+const WIDGET_IP =  '10.51.80.32';
+
 // Create an HTTPS agent that ignores SSL certificate errors (for -k flag)
 const agent = new https.Agent({
 	rejectUnauthorized: false
@@ -17,7 +21,7 @@ let callbackUrls = null;
 async function getCallbackUrls() {
 	return new Promise((resolve, reject) => {
 		const options = {
-			hostname: '10.51.80.25',
+			hostname: MEDIA_IP,
 			port: 8443,
 			path: '/foundation-transcode/callback_urls',
 			method: 'GET',
@@ -52,7 +56,7 @@ async function getCallbackUrls() {
 /**
  * Generate JSON payload for a specific QR code
  */
-function generatePayload(msCtrlCallBackUrl, qrCodeId) {
+function generatePayload(callbackUrls, qrCodeId, port) {
 	return {
 		"headers": {},
 		"metadata": {
@@ -60,19 +64,52 @@ function generatePayload(msCtrlCallBackUrl, qrCodeId) {
 			"options": {},
 			"widgets": [
 				{
-					"url": "",
-					"headers": {},
-					"key": "",
-					"cookies": [{}]
+					"url": `http://${MY_IP}:${port}/widget`,
+					// "url": `http://${WIDGET_IP}:${port}/widget`,
+					"headers": {
+						"x-stream-id": qrCodeId,
+						// "x-ms-ctrl-callback-url": callbackUrls.msCtrlCallBackUrl,
+						"x-ms-ctrl-callback-url": `${callbackUrls.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', '')}`,
+						// "x-ctrl-callback-url": callbackUrls.ctrlCallbackUrl,
+						"x-ctrl-callback-url": `${callbackUrls.ctrlCallbackUrl.replace('https', 'http').replace('8443/p/', '')}`,
+					},
+					"key": "1",
+					"cookies": []
 				}
 			],
 			"location": true,
 			"ptt": true,
-			"locationHref": ""
+			"locationHref": `http://${MEDIA_IP}:8084/foundation-transcode/shmcli/api/v1/settrack`
 		},
 		"stun_urls": ["stun:icf-prod-usw2b-turn.livelyvideo.tv:19302"],
-		"whip": `${msCtrlCallBackUrl}/api/v1/whip/create/${qrCodeId}`
+		// "whip": `${callbackUrls.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', '')}/api/v1/whip/create/${qrCodeId}`
+		"whip": `${callbackUrls.msCtrlCallBackUrl.replace('https', 'http').replace('8443/p/', '')}/api/v1/whip/create/${qrCodeId}`
 	};
+}
+
+/**
+ * Template engine - replaces {{variableName}} with values
+ */
+function injectVariables(html, variables) {
+	return html.replace(/\{\{(\w+)\}\}/g, (match, varName) => {
+		return variables[varName] !== undefined ? variables[varName] : match;
+	});
+}
+
+/**
+ * Serve HTML file with variable injection
+ */
+function serveHtml(filePath, variables, res) {
+	fs.readFile(filePath, 'utf8', (err, data) => {
+		if (err) {
+			res.writeHead(500, { 'Content-Type': 'text/plain' });
+			res.end('Error loading page');
+			return;
+		}
+		const processedHtml = injectVariables(data, variables);
+		res.writeHead(200, { 'Content-Type': 'text/html' });
+		res.end(processedHtml);
+	});
 }
 
 /**
@@ -80,12 +117,12 @@ function generatePayload(msCtrlCallBackUrl, qrCodeId) {
  */
 function createServer(port = 3000) {
 	const server = http.createServer((req, res) => {
-		const url = new URL(req.url, `http://localhost:${port}`);
+		const url = new URL(req.url, `http://${MY_IP}:${port}`);
 
 		// Serve JSON endpoints for QR codes
-		if (url.pathname.startsWith('/qr/')) {
-			const qrCodeId = url.pathname.split('/qr/')[1];
-			const payload = generatePayload(callbackUrls.msCtrlCallBackUrl, qrCodeId);
+		if (url.pathname.startsWith('/qr/w/')) {
+			const qrCodeId = url.pathname.split('/qr/w/')[1];
+			const payload = generatePayload(callbackUrls, qrCodeId, port);
 
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			res.end(JSON.stringify(payload, null, 2));
@@ -105,31 +142,26 @@ function createServer(port = 3000) {
 
 		// Serve main QR codes page
 		if (url.pathname === '/') {
-			const filePath = path.join(__dirname, 'qr-codes.html');
-			fs.readFile(filePath, 'utf8', (err, data) => {
-				if (err) {
-					res.writeHead(500, { 'Content-Type': 'text/plain' });
-					res.end('Error loading page');
-					return;
-				}
-				res.writeHead(200, { 'Content-Type': 'text/html' });
-				res.end(data);
-			});
+			const templateVars = {
+				MY_IP: MY_IP
+			};
+			serveHtml(path.join(__dirname, 'qr-codes.html'), templateVars, res);
+			return;
+		}
+
+		// Serve widget page
+		if (url.pathname === '/widget') {
+			const streamId = req.headers['x-stream-id'] || '';
+			const templateVars = {
+				STREAM_ID: streamId
+			};
+			serveHtml(path.join(__dirname, 'widget.html'), templateVars, res);
 			return;
 		}
 
 		// Serve minimap page
 		if (url.pathname === '/minimap') {
-			const filePath = path.join(__dirname, 'index.html');
-			fs.readFile(filePath, 'utf8', (err, data) => {
-				if (err) {
-					res.writeHead(500, { 'Content-Type': 'text/plain' });
-					res.end('Error loading minimap');
-					return;
-				}
-				res.writeHead(200, { 'Content-Type': 'text/html' });
-				res.end(data);
-			});
+			serveHtml(path.join(__dirname, 'minimap.html'), {}, res);
 			return;
 		}
 
@@ -139,7 +171,7 @@ function createServer(port = 3000) {
 	});
 
 	server.listen(port, () => {
-		console.log(`\n✅ Server running at http://localhost:${port}`);
+		console.log(`\n✅ Server running at http://${MY_IP}:${port}`);
 		console.log(`\nOpen your browser to view the QR codes and callback URLs.\n`);
 	});
 }
@@ -150,14 +182,14 @@ function createServer(port = 3000) {
 async function main() {
 	try {
 		console.log('Fetching callback URLs...');
-		// callbackUrls = await getCallbackUrls();
-		callbackUrls = {
-			"msCtrlCallBackUrl": "https://10.51.80.25:8443/p/8084/foundation-transcode/msctl",
-			"ctrlCallbackUrl": "https://10.51.80.25:8443/p/8084/foundation-transcode/shmcli",
-			"hlsEgressUrl": "https://10.51.80.25:8443/p/8084/foundation-transcode",
-			"ngxIngressBaseUrl": "https://localhost:8443/p/8083/foundation-transcode",
-			"rtmpIngressUrl": "rtmp://localhost/live"
-		}
+		callbackUrls = await getCallbackUrls();
+		// callbackUrls = {
+		// 	"msCtrlCallBackUrl": "https://10.51.80.25:8443/p/8084/foundation-transcode/msctl",
+		// 	"ctrlCallbackUrl": "https://10.51.80.25:8443/p/8084/foundation-transcode/shmcli",
+		// 	"hlsEgressUrl": "https://10.51.80.25:8443/p/8084/foundation-transcode",
+		// 	"ngxIngressBaseUrl": "https://localhost:8443/p/8083/foundation-transcode",
+		// 	"rtmpIngressUrl": "rtmp://localhost/live"
+		// }
 		console.log('Callback URLs received:');
 		console.log(JSON.stringify(callbackUrls, null, 2));
 

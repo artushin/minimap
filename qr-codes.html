@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -29,7 +30,7 @@
       text-align: center;
       margin-bottom: 40px;
       font-size: 2.5em;
-      text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
     }
 
     .info-section {
@@ -37,7 +38,7 @@
       padding: 30px;
       border-radius: 15px;
       margin-bottom: 40px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     }
 
     .info-section h2 {
@@ -79,13 +80,13 @@
       padding: 30px;
       border-radius: 15px;
       text-align: center;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
       transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
 
     .qr-card:hover {
       transform: translateY(-5px);
-      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
     }
 
     .qr-card h3 {
@@ -113,6 +114,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <h1>🎥 WHIP Configuration</h1>
@@ -154,6 +156,7 @@
 
         // Render QR codes
         const qrGrid = document.getElementById('qr-grid');
+        const myIp = '{{MY_IP}}';
         qrCodes.forEach(qr => {
           const qrCard = document.createElement('div');
           qrCard.className = 'qr-card';
@@ -162,18 +165,18 @@
             <div class="qr-code" id="qr-${qr.id}"></div>
             <div class="qr-url">
               <strong>Endpoint:</strong><br>
-              http://localhost:${port}/qr/${qr.id}
+              http://${myIp}:${port}/qr/w/${qr.id}
             </div>
           `;
           qrGrid.appendChild(qrCard);
 
           // Generate QR code
-          const url = `http://localhost:${port}/qr/${qr.id}`;
+          const url = `http://${myIp}:${port}/qr/w/${qr.id}`;
           new QRCode(document.getElementById(`qr-${qr.id}`), {
             text: url,
             width: 200,
             height: 200,
-            colorDark: "#667eea",
+            colorDark: "#000000",
             colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.H
           });
@@ -184,4 +187,5 @@
       });
   </script>
 </body>
+
 </html>
