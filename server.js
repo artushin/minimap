@@ -4,9 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
 
-const MY_IP =  '10.51.80.7';
-const MEDIA_IP =  '10.51.80.25';
-const WIDGET_IP =  '10.51.80.32';
+const MY_URL =  'https://alex.frp.livelyvideo.tv';
+const MEDIA_HOST =  '10.51.80.25';
+const WIDGET_HOST =  'https://leo.frp.livelyvideo.tv';
 
 // Create an HTTPS agent that ignores SSL certificate errors (for -k flag)
 const agent = new https.Agent({
@@ -21,7 +21,7 @@ let callbackUrls = null;
 async function getCallbackUrls() {
 	return new Promise((resolve, reject) => {
 		const options = {
-			hostname: MEDIA_IP,
+			hostname: MEDIA_HOST,
 			port: 8443,
 			path: '/foundation-transcode/callback_urls',
 			method: 'GET',
@@ -64,7 +64,7 @@ async function getCallbackUrls() {
 /**
  * Generate JSON payload for a specific QR code
  */
-function generatePayload(callbackUrls, qrCodeId, port) {
+function generatePayload(callbackUrls, qrCodeId) {
 	return {
 		"headers": {},
 		"metadata": {
@@ -72,7 +72,7 @@ function generatePayload(callbackUrls, qrCodeId, port) {
 			"options": {},
 			"widgets": [
 				{
-					"url": `http://${WIDGET_IP}:${port}`,
+					"url": `${WIDGET_HOST}`,
 					"headers": {
 						"x-stream-id": qrCodeId,
 						"x-ms-ctrl-callback-url": callbackUrls.msCtrlCallBackUrl,
@@ -84,7 +84,7 @@ function generatePayload(callbackUrls, qrCodeId, port) {
 			],
 			"location": true,
 			"ptt": true,
-			"locationHref": `http://${MEDIA_IP}:8084/foundation-transcode/shmcli/api/v1/settrack`
+			"locationHref": `http://${MEDIA_HOST}:8084/foundation-transcode/shmcli/api/v1/settrack`
 		},
 		"stun_urls": ["stun:icf-prod-usw2b-turn.livelyvideo.tv:19302"],
 		"whip": `${callbackUrls.msCtrlCallBackUrl}/api/v1/whip/create/${qrCodeId}`
@@ -121,7 +121,7 @@ function serveHtml(filePath, variables, res) {
  */
 function createServer(port = 3000) {
 	const server = http.createServer((req, res) => {
-		const url = new URL(req.url, `http://${MY_IP}:${port}`);
+		const url = new URL(req.url, `http://${MY_URL}`);
 
 		// Serve JSON endpoints for QR codes
 		if (url.pathname.startsWith('/qr/w/')) {
@@ -147,19 +147,9 @@ function createServer(port = 3000) {
 		// Serve main QR codes page
 		if (url.pathname === '/') {
 			const templateVars = {
-				MY_IP: MY_IP
+				MY_URL: MY_URL
 			};
 			serveHtml(path.join(__dirname, 'qr-codes.html'), templateVars, res);
-			return;
-		}
-
-		// Serve widget page
-		if (url.pathname === '/widget') {
-			const streamId = req.headers['x-stream-id'] || '';
-			const templateVars = {
-				STREAM_ID: streamId
-			};
-			serveHtml(path.join(__dirname, 'widget.html'), templateVars, res);
 			return;
 		}
 
@@ -178,7 +168,7 @@ function createServer(port = 3000) {
 	});
 
 	server.listen(port, () => {
-		console.log(`\n✅ Server running at http://${MY_IP}:${port}`);
+		console.log(`\n✅ Server running at http://${MY_URL}`);
 		console.log(`\nOpen your browser to view the QR codes and callback URLs.\n`);
 	});
 }
