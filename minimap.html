@@ -156,6 +156,8 @@
 		// Replace with your actual Google Maps API key
 		const GOOGLE_MAPS_API_KEY = 'AIzaSyATFVb_BO1HhFGZ8m0PMe7uy2F4T2KW6ZQ';
 		const UPDATES_URL = '{{UPDATE_URL}}';
+		const GET_UPDATES_URL = `${UPDATES_URL}/api/v1/streams`;
+		const POST_UPDATES_URL = `${UPDATES_URL}/api/v1/setchannelappdata`;
 
 		// Configuration
 		const INITIAL_ZOOM = 20; // Good balance for seeing detail and area
@@ -186,7 +188,7 @@
 		// Fetch coordinates from server
 		async function fetchCoordinates() {
 			try {
-				const response = await fetch(UPDATES_URL);
+				const response = await fetch(GET_UPDATES_URL);
 				if (!response.ok) {
 					throw new Error(`HTTP error! status: ${response.status}`);
 				}
@@ -207,6 +209,8 @@
 
 			const coords = [];
 			videoStreams.forEach((stream, index) => {
+				if (stream.streamName.indexOf('player') < 0) return;
+				if (stream.sourceType != 'rtp') return;
 				if (!stream.appData) return;
 
 				try {
@@ -216,6 +220,7 @@
 						const existingCoord = coordinates.find(c => c.id === stream.streamName);
 						const color = existingCoord ? existingCoord.color : COLORS[index % COLORS.length];
 
+						console.log(stream.streamName, appData.ptt);
 						coords.push({
 							id: stream.streamName,
 							latitude: appData.latitude,
@@ -328,8 +333,17 @@
 				]
 			});
 
-			// Initialize coordinate markers
-			updateMarkers();
+			// Wait for map to be fully initialized before proceeding
+			google.maps.event.addListenerOnce(map, 'idle', () => {
+				// Initialize coordinate markers
+				updateMarkers();
+
+				// Post initial map bounds after map is ready
+				postMapBounds();
+
+				// Also post bounds whenever map bounds change
+				google.maps.event.addListener(map, 'bounds_changed', postMapBounds);
+			});
 		}
 
 		function shrinkBounds(bounds, percentage) {
@@ -444,6 +458,66 @@
 		function startPolling() {
 			// Poll for updates at regular intervals
 			setInterval(pollCoordinates, POLL_INTERVAL);
+
+			// Also post map bounds every 5 seconds
+			setInterval(postMapBounds, 5000);
+		}
+
+		// Post map bounds and dimensions to server
+		async function postMapBounds() {
+			if (!map) return;
+
+			const bounds = map.getBounds();
+			if (!bounds) return;
+			console.log('bounds');
+
+			const ne = bounds.getNorthEast();
+			const sw = bounds.getSouthWest();
+			const nw = new google.maps.LatLng(ne.lat(), sw.lng());
+			const se = new google.maps.LatLng(sw.lat(), ne.lng());
+
+			const mapDiv = document.getElementById('map');
+			const width = mapDiv.offsetWidth;
+			const height = mapDiv.offsetHeight;
+
+			const payload = {
+				tl: {
+					lat: nw.lat(),
+					long: nw.lng()
+				},
+				bl: {
+					lat: sw.lat(),
+					long: sw.lng()
+				},
+				tr: {
+					lat: ne.lat(),
+					long: ne.lng()
+				},
+				br: {
+					lat: se.lat(),
+					long: se.lng()
+				},
+				w: 720,
+				h: 1080
+			};
+
+			try {
+				await fetch(POST_UPDATES_URL, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+						streamFullName: 'smst_2001__default_map',
+						data: [{
+							channelId: "408f229b-4772-4d9c-8e14-83bf049532f4",
+							appData: JSON.stringify(payload)
+						}]
+					})
+				});
+			} catch (error) {
+				console.error('Error posting map bounds:', error);
+			}
 		}
 
 		// Initialize everything when the page loads

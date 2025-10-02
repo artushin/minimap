@@ -5,7 +5,8 @@ const path = require('path');
 const { URL } = require('url');
 
 const MY_URL =  'https://alex.frp.livelyvideo.tv';
-const MEDIA_HOST =  '10.51.80.25';
+// const MEDIA_HOST =  '10.51.80.25';
+const MEDIA_HOST =  '10.15.0.123';
 const WIDGET_HOST =  'https://leo.frp.livelyvideo.tv';
 
 // Create an HTTPS agent that ignores SSL certificate errors (for -k flag)
@@ -156,7 +157,7 @@ function createServer(port = 3000) {
 		// Serve minimap page
 		if (url.pathname === '/minimap') {
 			const templateVars = {
-				UPDATE_URL: `${callbackUrls.ctrlCallbackUrl}/api/v1/streams`
+				UPDATE_URL: callbackUrls.ctrlCallbackUrl
 			};
 			serveHtml(path.join(__dirname, 'minimap.html'), templateVars, res);
 			return;
