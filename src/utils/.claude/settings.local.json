@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/leo/Code/hackathon-2025/node_modules/mediasoup-client/lib/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
