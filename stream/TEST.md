@@ -1,0 +1,1 @@
+docker run --rm -e WHIP_URL="https://vulpix.zorro-prod-badlands.nativeframe.com/foundation-transcode/msctl/api/v1/whip/create/map" -e TEST_MODE=true browser-whip-streamer

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { generateWidgetUrl } from '../config';
+import { WIDGET_HOST } from '../config';
 
 // Using QRCode.js via CDN - declare it for TypeScript
 declare const QRCode: any;
@@ -31,10 +31,10 @@ function QRCodesPage() {
       qrCodes.forEach((qr) => {
         const element = document.getElementById(`qr-${qr.id}`);
         if (element && element.children.length === 0) {
-          // Generate the full widget URL with all parameters
-          const url = generateWidgetUrl(qr.id);
+          // Generate https URL that points to the JSON endpoint
+          const jsonEndpoint = `${WIDGET_HOST}/assets/qr/w/${qr.id}.json`;
           new QRCode(element, {
-            text: url,
+            text: jsonEndpoint,
             width: 200,
             height: 200,
             colorDark: '#000000',
@@ -95,25 +95,39 @@ function QRCodesPage() {
                   </div>
 
                   {/* Back of card */}
-                  <div className="absolute w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] bg-white rounded-2xl shadow-2xl flex flex-col items-center justify-center p-8">
-                    <h3 className="text-[#667eea] text-2xl font-semibold mb-5">
+                  <div className="absolute w-full h-full [backface-visibility:hidden] [transform:rotateY(180deg)] bg-white rounded-2xl shadow-2xl flex flex-col p-6">
+                    <h3 className="text-[#667eea] text-2xl font-semibold mb-4 text-center">
                       {qr.name}
                     </h3>
-                    <div
-                      id={`qr-${qr.id}`}
-                      className="inline-block p-4 bg-white rounded-xl mb-4"
-                    />
-                    <div className="bg-gray-100 p-3 rounded-lg text-xs break-all max-w-full">
-                      <strong className="text-gray-700 block mb-1">Widget URL:</strong>
-                      <a
-                        href={generateWidgetUrl(qr.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-[#667eea] hover:underline block"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {generateWidgetUrl(qr.id)}
-                      </a>
+                    <div className="flex-1 flex items-center justify-center">
+                      <div
+                        id={`qr-${qr.id}`}
+                        className="inline-block p-2 bg-white rounded-xl"
+                      />
+                    </div>
+                    <div className="bg-gray-100 p-3 rounded-lg text-xs break-all space-y-3">
+                      <div>
+                        <strong className="text-gray-700 block mb-1">HTTPS URL:</strong>
+                        <a
+                          href={`${WIDGET_HOST}/assets/qr/w/${qr.id}.json`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#667eea] hover:underline block leading-tight"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {`${WIDGET_HOST}/assets/qr/w/${qr.id}.json`}
+                        </a>
+                      </div>
+                      <div>
+                        <strong className="text-gray-700 block mb-1">Deeplink URL:</strong>
+                        <a
+                          href={`apperturelive://${WIDGET_HOST}/assets/qr/w/${qr.id}.json`}
+                          className="text-[#667eea] hover:underline block leading-tight"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {`apperturelive://${WIDGET_HOST}/assets/qr/w/${qr.id}.json`}
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </div>

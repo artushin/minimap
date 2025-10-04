@@ -1,10 +1,9 @@
 // Build-time configuration from environment variables
 // These are injected by Vite during build time from .env file
 
-export const WIDGET_HOST = import.meta.env.VITE_WIDGET_HOST || 'https://leo.frp.livelyvideo.tv';
+export const WIDGET_HOST = import.meta.env.VITE_WIDGET_HOST || 'https://alex.frp.livelyvideo.tv';
 export const MS_CTRL_CALLBACK_URL = import.meta.env.VITE_MS_CTRL_CALLBACK_URL || 'https://vulpix.zorro-prod-badlands.nativeframe.com/p/8938/foundation-transcode/msctl';
 export const CTRL_CALLBACK_URL = import.meta.env.VITE_CTRL_CALLBACK_URL || 'https://vulpix.zorro-prod-badlands.nativeframe.com/p/8938/foundation-transcode/shmcli';
-export const QR_BASE_URL = import.meta.env.VITE_QR_BASE_URL || 'https://alex.frp.livelyvideo.tv';
 
 // Derived configuration
 export const MEDIA_HOST = 'vulpix.zorro-prod-badlands.nativeframe.com';

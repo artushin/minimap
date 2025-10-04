@@ -15,10 +15,9 @@ The output is in `dist/` directory.
 
 All configuration is injected at build time from `.env` file:
 
-- `VITE_WIDGET_HOST` - Where the widget is hosted
+- `VITE_WIDGET_HOST` - Where the widget is hosted and the base URL for QR code generation
 - `VITE_MS_CTRL_CALLBACK_URL` - Media server control callback URL
-- `VITE_CTRL_CALLBACK_URL` - Control callback URL  
-- `VITE_QR_BASE_URL` - Base URL for QR code generation
+- `VITE_CTRL_CALLBACK_URL` - Control callback URL
 
 ## Deployment
 

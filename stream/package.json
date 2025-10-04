@@ -1,0 +1,34 @@
+{
+  "name": "browser-rtmp-streamer",
+  "version": "1.0.0",
+  "description": "Headless browser RTMP streaming service for OBS integration",
+  "main": "browser-launcher.js",
+  "scripts": {
+    "start": "node browser-launcher.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "docker:build": "docker build -t browser-rtmp-streamer .",
+    "docker:run": "docker compose up",
+    "docker:stop": "docker compose down",
+    "docker:logs": "docker compose logs -f browser-streamer"
+  },
+  "keywords": [
+    "rtmp",
+    "streaming",
+    "obs",
+    "headless",
+    "browser",
+    "docker",
+    "ffmpeg"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "playwright": "^1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

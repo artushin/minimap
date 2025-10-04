@@ -1,0 +1,151 @@
+version: '3.8'
+
+services:
+  browser-streamer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rtmp-browser-streamer
+    
+    # Required for Chrome to run properly
+    cap_add:
+      - SYS_ADMIN
+    
+    # Shared memory size for Chrome
+    shm_size: '2gb'
+    
+    environment:
+      # Display configuration
+      - DISPLAY_NUM=99
+      - SCREEN_WIDTH=1920
+      - SCREEN_HEIGHT=1080
+      - SCREEN_DEPTH=24
+      
+      # Streaming configuration
+      - FRAMERATE=30
+      - BITRATE=2500000  # 2.5 Mbps
+
+      # RTMP endpoint configuration (REQUIRED)
+      - RTMP_URL=${RTMP_URL}  # e.g., rtmp://server.example.com:1935/live/stream
+
+      # Browser configuration
+      - BROWSER_URL=${BROWSER_URL:-https://example.com/widget}
+      - BROWSER_TYPE=chrome  # or 'playwright'
+      
+      # Test mode (use test pattern instead of browser)
+      - TEST_MODE=false  # Set to true for testing without browser
+      
+      # Optional: Custom JavaScript to inject
+      # - INJECT_SCRIPT="console.log('Custom script injected');"
+    
+    # Optional: Mount volumes for persistent data or custom scripts
+    volumes:
+      - ./data:/data
+      - ./scripts:/app/custom-scripts:ro
+    
+    # Optional: Expose ports for debugging
+    ports:
+      - "5900:5900"  # VNC port (if x11vnc is enabled)
+      - "8080:8080"  # Optional web interface port
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+        reservations:
+          cpus: '1'
+          memory: 2G
+    
+    # Restart policy (disabled for debugging)
+    # restart: unless-stopped
+    
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Network configuration
+    networks:
+      - streaming-net
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "/app/healthcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: MediaMTX for RTMP server (for testing)
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: mediamtx-rtmp-server
+    restart: unless-stopped
+    environment:
+      - MTX_PROTOCOLS=tcp,udp,webrtc
+      - MTX_WEBRTCADDITIONALHOSTS=192.168.1.100  # Your external IP
+    ports:
+      - "8554:8554"   # RTSP
+      - "1935:1935"   # RTMP
+      - "8888:8888"   # HLS
+      - "8889:8889"   # WebRTC
+      - "8890:8890"   # SRT
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    networks:
+      - streaming-net
+    profiles:
+      - with-server
+
+  # Optional: LiveKit server for testing
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: livekit-server
+    restart: unless-stopped
+    ports:
+      - "7880:7880"  # HTTP
+      - "7881:7881"  # RTC
+    environment:
+      - LIVEKIT_KEYS=devkey:secret
+      - LIVEKIT_LOG_LEVEL=debug
+    command: --dev --bind 0.0.0.0
+    networks:
+      - streaming-net
+    profiles:
+      - with-livekit
+
+networks:
+  streaming-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24
+
+# Usage examples:
+#
+# 1. Basic usage with external RTMP server:
+#    docker-compose up
+#
+# 2. With MediaMTX test server:
+#    docker-compose --profile with-server up
+#
+# 3. With LiveKit test server:
+#    docker-compose --profile with-livekit up
+#
+# 4. Build and run with custom settings:
+#    RTMP_URL="rtmp://your-server.com:1935/live/stream" \
+#    BROWSER_URL="https://your-widget.com" \
+#    docker-compose up --build
+#
+# 5. Run in background:
+#    docker-compose up -d
+#
+# 6. View logs:
+#    docker-compose logs -f browser-streamer
+#
+# 7. Stop all services:
+#    docker-compose down

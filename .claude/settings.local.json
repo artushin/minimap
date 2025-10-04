@@ -4,7 +4,9 @@
       "Bash(yarn add:*)",
       "Bash(yarn build)",
       "Bash(node server.js)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []
