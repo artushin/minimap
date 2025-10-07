@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { WIDGET_HOST } from '../config';
 
 // Using QRCode.js via CDN - declare it for TypeScript
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const QRCode: any;
 
 interface QRCodeData {
@@ -121,11 +122,11 @@ function QRCodesPage() {
                       <div>
                         <strong className="text-gray-700 block mb-1">Deeplink URL:</strong>
                         <a
-                          href={`apperturelive://${WIDGET_HOST}/assets/qr/w/${qr.id}.json`}
+                          href={`${WIDGET_HOST.replace('https://', 'aperturelive://')}/assets/qr/w/${qr.id}.json`}
                           className="text-[#667eea] hover:underline block leading-tight"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          {`apperturelive://${WIDGET_HOST}/assets/qr/w/${qr.id}.json`}
+                          {`${WIDGET_HOST.replace('https://', 'aperturelive://')}/assets/qr/w/${qr.id}.json`}
                         </a>
                       </div>
                     </div>

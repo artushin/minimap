@@ -3,8 +3,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 
 // Test mode configuration
 const TEST_MODE = false; // Set to false to use real API
-const TEST_CURRENT_PLAYER_LAT = 32.7726723;
-const TEST_CURRENT_PLAYER_LNG = -117.2471726;
+const TEST_CURRENT_PLAYER_LAT = 30.284511;
+const TEST_CURRENT_PLAYER_LNG = -97.717262;
 const TEST_CIRCLE_RADIUS_KM = 0.5; // 500 meters radius
 
 export interface StreamData {

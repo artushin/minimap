@@ -3,7 +3,6 @@
  * Simple static file server for the widget bundle
  * Usage: node serve.js [port]
  */
-
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
@@ -27,29 +26,33 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer((req, res) => {
-  let filePath = path.join(DIST_DIR, req.url === '/' ? 'index.html' : req.url);
+  // Parse URL to remove query string
+  const urlPath = req.url.split('?')[0];
 
-  // If path has no extension, try to serve index.html (for SPA routing)
-  if (!path.extname(filePath)) {
-    filePath = path.join(DIST_DIR, 'index.html');
+  // If path has no extension, serve index.html (for SPA routing)
+  if (!path.extname(urlPath)) {
+    fs.readFile(path.join(DIST_DIR, 'index.html'), (err, content) => {
+      if (err) {
+        res.writeHead(500);
+        res.end('Error loading index.html');
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(content, 'utf-8');
+      }
+    });
+    return;
   }
 
+  // Serve static file
+  const filePath = path.join(DIST_DIR, urlPath);
   const ext = path.extname(filePath);
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
 
   fs.readFile(filePath, (err, content) => {
     if (err) {
       if (err.code === 'ENOENT') {
-        // File not found, serve index.html for SPA routing
-        fs.readFile(path.join(DIST_DIR, 'index.html'), (err, content) => {
-          if (err) {
-            res.writeHead(500);
-            res.end('Error loading page');
-          } else {
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end(content, 'utf-8');
-          }
-        });
+        res.writeHead(404);
+        res.end('File not found');
       } else {
         res.writeHead(500);
         res.end('Server error: ' + err.code);

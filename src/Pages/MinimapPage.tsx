@@ -1,9 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useRef, useState } from 'react';
-import { GOOGLE_MAPS_API_KEY, CTRL_CALLBACK_URL } from '../config';
-
-// Google Maps types
-declare const google: any;
+import { CTRL_CALLBACK_URL } from '../config';
 
 interface Coordinate {
   id: string;
@@ -13,39 +10,44 @@ interface Coordinate {
   velocity: { lat: number; lng: number };
 }
 
+interface LatLngBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
 const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFA07A', '#98D8C8', '#F7B731', '#5F27CD'];
-const INITIAL_ZOOM = 20;
-const MIN_ZOOM = 14;
+const INITIAL_ZOOM = 18;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 19;
 const POLL_INTERVAL = 500;
+const TILE_SIZE = 256;
+
+// Utility functions for tile math
+const lon2tile = (lon: number, zoom: number): number => {
+  return Math.floor(((lon + 180) / 360) * Math.pow(2, zoom));
+};
+
+const lat2tile = (lat: number, zoom: number): number => {
+  return Math.floor(
+    ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) *
+      Math.pow(2, zoom)
+  );
+};
 
 function MinimapPage() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<any>(null);
-  const markersRef = useRef<Record<string, any>>({});
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const coordinatesRef = useRef<Coordinate[]>([]);
   const mapStreamInfoRef = useRef<{ fullName: string | null; channelId: string | null }>({
     fullName: null,
     channelId: null,
   });
   const [error, setError] = useState<string | null>(null);
-
-  // Load Google Maps script
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap`;
-    script.async = true;
-    script.defer = true;
-
-    // Setup callback
-    (window as any).initMap = initMap;
-
-    document.head.appendChild(script);
-
-    return () => {
-      document.head.removeChild(script);
-      delete (window as any).initMap;
-    };
-  }, []);
+  const zoomRef = useRef<number>(INITIAL_ZOOM);
+  const centerRef = useRef<{ lat: number; lng: number }>({ lat: 30.284511, lng: -97.717262 });
+  const tilesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const boundsRef = useRef<LatLngBounds | null>(null);
 
   const parseCoordinatesFromResponse = (data: any): Coordinate[] => {
     if (!data.streams) return [];
@@ -109,104 +111,101 @@ function MinimapPage() {
     }
   };
 
-  const shrinkBounds = (bounds: any, percentage: number) => {
-    const ne = bounds.getNorthEast();
-    const sw = bounds.getSouthWest();
+  const loadTile = (x: number, y: number, zoom: number): Promise<HTMLImageElement> => {
+    const key = `${zoom}-${x}-${y}`;
 
-    const latRange = ne.lat() - sw.lat();
-    const lngRange = ne.lng() - sw.lng();
-
-    const latInset = latRange * percentage;
-    const lngInset = lngRange * percentage;
-
-    const newSW = new google.maps.LatLng(sw.lat() + latInset, sw.lng() + lngInset);
-    const newNE = new google.maps.LatLng(ne.lat() - latInset, ne.lng() - lngInset);
-
-    return new google.maps.LatLngBounds(newSW, newNE);
-  };
-
-  const updateMarkers = () => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
-    const currentBounds = map.getBounds();
-    let needsRefit = false;
-
-    coordinatesRef.current.forEach((coord) => {
-      const position = { lat: coord.latitude, lng: coord.longitude };
-
-      if (currentBounds && !shrinkBounds(currentBounds, 0.1).contains(position)) {
-        needsRefit = true;
-      }
-
-      if (markersRef.current[coord.id]) {
-        markersRef.current[coord.id].setPosition(position);
-      } else {
-        markersRef.current[coord.id] = new google.maps.Marker({
-          position: position,
-          map: map,
-          title: coord.id,
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            scale: 8,
-            fillColor: coord.color || '#FF6B6B',
-            fillOpacity: 0.8,
-            strokeColor: '#ffffff',
-            strokeWeight: 1.5,
-            strokeOpacity: 0.9,
-          },
-        });
-        needsRefit = true;
-      }
-    });
-
-    if (needsRefit) {
-      fitMapToBounds();
+    if (tilesRef.current.has(key)) {
+      return Promise.resolve(tilesRef.current.get(key)!);
     }
+
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        tilesRef.current.set(key, img);
+        resolve(img);
+      };
+      img.onerror = reject;
+      // Using OpenStreetMap tiles (dark style via Carto)
+      img.src = `https://a.basemaps.cartocdn.com/dark_all/${zoom}/${x}/${y}.png`;
+    });
   };
 
-  const fitMapToBounds = () => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
+  const calculateBounds = (): LatLngBounds | null => {
+    if (coordinatesRef.current.length === 0) return null;
 
-    const bounds = new google.maps.LatLngBounds();
+    let north = -90,
+      south = 90,
+      east = -180,
+      west = 180;
 
     coordinatesRef.current.forEach((coord) => {
-      bounds.extend({ lat: coord.latitude, lng: coord.longitude });
+      north = Math.max(north, coord.latitude);
+      south = Math.min(south, coord.latitude);
+      east = Math.max(east, coord.longitude);
+      west = Math.min(west, coord.longitude);
     });
 
-    map.fitBounds(bounds);
+    // Add padding (10%)
+    const latPadding = (north - south) * 0.1;
+    const lngPadding = (east - west) * 0.1;
 
-    const listener = google.maps.event.addListener(map, 'idle', () => {
-      if (map.getZoom() < MIN_ZOOM) {
-        map.setZoom(MIN_ZOOM);
+    return {
+      north: north + latPadding,
+      south: south - latPadding,
+      east: east + lngPadding,
+      west: west - lngPadding,
+    };
+  };
+
+  const calculateZoomForBounds = (bounds: LatLngBounds, canvasWidth: number, canvasHeight: number): number => {
+    // Calculate zoom based on how many tiles we need to fit the bounds
+    // Start from max zoom and work down until everything fits
+    let zoom = MIN_ZOOM;
+    for (let z = MAX_ZOOM; z >= MIN_ZOOM; z--) {
+      const latTiles = Math.abs(lat2tile(bounds.north, z) - lat2tile(bounds.south, z));
+      const lngTiles = Math.abs(lon2tile(bounds.east, z) - lon2tile(bounds.west, z));
+
+      const pixelHeight = latTiles * TILE_SIZE;
+      const pixelWidth = lngTiles * TILE_SIZE;
+
+      // If bounds fit within canvas at this zoom level, use it
+      if (pixelWidth <= canvasWidth && pixelHeight <= canvasHeight) {
+        zoom = z;
+        break;
       }
-      google.maps.event.removeListener(listener);
-    });
+    }
+
+    return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+  };
+
+  const latLngToPixel = (lat: number, lng: number, zoom: number, center: { lat: number; lng: number }, canvasWidth: number, canvasHeight: number) => {
+    const centerTileX = lon2tile(center.lng, zoom);
+    const centerTileY = lat2tile(center.lat, zoom);
+
+    const pointTileX = lon2tile(lng, zoom);
+    const pointTileY = lat2tile(lat, zoom);
+
+    const x = (pointTileX - centerTileX) * TILE_SIZE + canvasWidth / 2;
+    const y = (pointTileY - centerTileY) * TILE_SIZE + canvasHeight / 2;
+
+    return { x, y };
   };
 
   const postMapBounds = async () => {
-    const map = mapInstanceRef.current;
-    if (!map) return;
-
     if (!mapStreamInfoRef.current.fullName || !mapStreamInfoRef.current.channelId) {
       console.warn('Map stream info not yet loaded, skipping postMapBounds');
       return;
     }
 
-    const bounds = map.getBounds();
+    const bounds = boundsRef.current;
     if (!bounds) return;
 
-    const ne = bounds.getNorthEast();
-    const sw = bounds.getSouthWest();
-    const nw = new google.maps.LatLng(ne.lat(), sw.lng());
-    const se = new google.maps.LatLng(sw.lat(), ne.lng());
-
     const payload = {
-      tl: { lat: nw.lat(), long: nw.lng() },
-      bl: { lat: sw.lat(), long: sw.lng() },
-      tr: { lat: ne.lat(), long: ne.lng() },
-      br: { lat: se.lat(), long: se.lng() },
+      tl: { lat: bounds.north, long: bounds.west },
+      bl: { lat: bounds.south, long: bounds.west },
+      tr: { lat: bounds.north, long: bounds.east },
+      br: { lat: bounds.south, long: bounds.east },
       w: 720,
       h: 1080,
     };
@@ -230,88 +229,130 @@ function MinimapPage() {
     }
   };
 
+  const renderMap = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+
+    // Clear canvas
+    ctx.fillStyle = '#0a0f14';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Update bounds and zoom if we have coordinates
+    if (coordinatesRef.current.length > 0) {
+      const newBounds = calculateBounds();
+      if (newBounds) {
+        boundsRef.current = newBounds;
+        const newZoom = calculateZoomForBounds(newBounds, canvasWidth, canvasHeight);
+        zoomRef.current = newZoom;
+
+        // Update center to be the center of bounds
+        centerRef.current = {
+          lat: (newBounds.north + newBounds.south) / 2,
+          lng: (newBounds.east + newBounds.west) / 2,
+        };
+      }
+    }
+
+    const zoom = zoomRef.current;
+    const center = centerRef.current;
+
+    // Calculate which tiles we need
+    const centerTileX = lon2tile(center.lng, zoom);
+    const centerTileY = lat2tile(center.lat, zoom);
+
+    const tilesWide = Math.ceil(canvasWidth / TILE_SIZE) + 2;
+    const tilesHigh = Math.ceil(canvasHeight / TILE_SIZE) + 2;
+
+    const startTileX = Math.floor(centerTileX - tilesWide / 2);
+    const startTileY = Math.floor(centerTileY - tilesHigh / 2);
+
+    // Load and draw tiles
+    for (let y = 0; y < tilesHigh; y++) {
+      for (let x = 0; x < tilesWide; x++) {
+        const tileX = startTileX + x;
+        const tileY = startTileY + y;
+
+        const pixelX = (tileX - centerTileX) * TILE_SIZE + canvasWidth / 2;
+        const pixelY = (tileY - centerTileY) * TILE_SIZE + canvasHeight / 2;
+
+        try {
+          const img = await loadTile(tileX, tileY, zoom);
+          ctx.drawImage(img, pixelX, pixelY, TILE_SIZE, TILE_SIZE);
+        } catch (error) {
+          // Skip failed tiles
+        }
+      }
+    }
+
+    // Draw player markers
+    coordinatesRef.current.forEach((coord) => {
+      const pixel = latLngToPixel(coord.latitude, coord.longitude, zoom, center, canvasWidth, canvasHeight);
+
+      ctx.beginPath();
+      ctx.arc(pixel.x, pixel.y, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = coord.color;
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    });
+  };
+
   const pollCoordinates = async () => {
     const newCoordinates = await fetchCoordinates();
     coordinatesRef.current = newCoordinates;
 
-    // Remove markers that are no longer in the coordinate list
-    const currentIds = new Set(newCoordinates.map((c) => c.id));
-    Object.keys(markersRef.current).forEach((id) => {
-      if (!currentIds.has(id)) {
-        markersRef.current[id].setMap(null);
-        delete markersRef.current[id];
-      }
-    });
-
     if (newCoordinates.length > 0) {
-      updateMarkers();
+      await renderMap();
     }
   };
 
-  const setupMap = async (center: { lat: number; lng: number }) => {
-    if (!mapRef.current) return;
+  // Initialize canvas and start polling
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const map = new google.maps.Map(mapRef.current, {
-      center: center,
-      zoom: INITIAL_ZOOM,
-      mapTypeId: 'roadmap',
-      disableDefaultUI: true,
-      gestureHandling: 'none',
-      keyboardShortcuts: false,
-      clickableIcons: false,
-      disableDoubleClickZoom: true,
-      scrollwheel: false,
-      backgroundColor: '#0a0f14',
-      styles: [
-        { elementType: 'labels', stylers: [{ visibility: 'off' }] },
-        { elementType: 'geometry', stylers: [{ color: '#1a2530' }] },
-        { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0a1015' }] },
-        { featureType: 'landscape', elementType: 'geometry', stylers: [{ color: '#25303a' }] },
-        { featureType: 'landscape.man_made', elementType: 'geometry', stylers: [{ color: '#3a4550' }] },
-        { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#1a3020' }] },
-        { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#3a4550' }] },
-        { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#252f3a', weight: 0.5 }] },
-        { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#4a5565' }] },
-        { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#2a3540', weight: 0.5 }] },
-        { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#3a4555' }] },
-        { featureType: 'poi.business', elementType: 'geometry', stylers: [{ color: '#404a5a' }] },
-        { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#3a4555' }] },
-        { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#404a5a' }] },
-        { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#4a5560', weight: 0.5 }] },
-        { featureType: 'administrative.land_parcel', elementType: 'geometry.stroke', stylers: [{ color: '#3a4550' }] },
-      ],
-    });
+    // Set canvas size to match container
+    const updateCanvasSize = () => {
+      const container = canvas.parentElement;
+      if (container) {
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+        renderMap();
+      }
+    };
 
-    mapInstanceRef.current = map;
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
 
-    google.maps.event.addListenerOnce(map, 'idle', () => {
-      updateMarkers();
-      postMapBounds();
-      google.maps.event.addListener(map, 'bounds_changed', postMapBounds);
+    // Initial fetch and render
+    fetchCoordinates().then((coords) => {
+      coordinatesRef.current = coords;
+      if (coords.length > 0) {
+        centerRef.current = {
+          lat: coords[0].latitude,
+          lng: coords[0].longitude,
+        };
+      }
+      renderMap();
     });
 
     // Start polling
-    setInterval(pollCoordinates, POLL_INTERVAL);
-    setInterval(postMapBounds, 5000);
-  };
+    const pollInterval = setInterval(pollCoordinates, POLL_INTERVAL);
+    const boundsInterval = setInterval(postMapBounds, 5000);
 
-  const initMap = async () => {
-    coordinatesRef.current = await fetchCoordinates();
-
-    let center: { lat: number; lng: number };
-
-    if (coordinatesRef.current.length > 0) {
-      center = {
-        lat: coordinatesRef.current[0].latitude,
-        lng: coordinatesRef.current[0].longitude,
-      };
-    } else {
-      // Fallback to San Diego coordinates
-      center = { lat: 32.772652, lng: -117.246941 };
-    }
-
-    setupMap(center);
-  };
+    return () => {
+      window.removeEventListener('resize', updateCanvasSize);
+      clearInterval(pollInterval);
+      clearInterval(boundsInterval);
+    };
+  }, []);
 
   return (
     <div className="w-screen h-screen bg-black flex items-center justify-center overflow-hidden">
@@ -323,7 +364,7 @@ function MinimapPage() {
 
       <div className="relative" style={{ width: '100vh', aspectRatio: '9/16', filter: 'drop-shadow(0 0 10px rgba(0, 255, 200, 0.2))' }}>
         <div className="relative w-full h-full">
-          <div ref={mapRef} className="w-full h-full relative" />
+          <canvas ref={canvasRef} className="w-full h-full relative" />
 
           {/* Grid overlay */}
           <div
@@ -361,20 +402,6 @@ function MinimapPage() {
             }}
           />
         </div>
-
-        {/* Frame border SVG */}
-        <svg
-          className="absolute top-0 left-0 w-full h-full z-20 pointer-events-none"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-        >
-          <path
-            d="M 50,5 L 85,25 L 85,75 L 50,95 L 15,75 L 15,25 Z"
-            fill="none"
-            stroke="rgba(0, 255, 200, 0.6)"
-            strokeWidth="0.5"
-          />
-        </svg>
       </div>
 
       <style>{`

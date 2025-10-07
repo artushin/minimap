@@ -150,7 +150,7 @@ const defaultOrtcRouterRtpCapabilities = {
         usedtx: 0,
         useinbandfec: 1,
       },
-      preferredPayloadType: 110,
+      preferredPayloadType: 111,
       rtcpFeedback: [{ type: "transport-cc" }],
     },
   ],
@@ -631,43 +631,6 @@ class WebRTCViewer {
       ctrlCallbackUrl,
     };
   }
-
-  // private getDefaultOrtcRouterRtpCapabilities(): any {
-  //   // This would be your default ORTC router RTP capabilities
-  //   // You'll need to implement this based on your actual capabilities
-  //   return {
-  //     codecs: [
-  //       {
-  //         kind: 'audio',
-  //         mimeType: 'audio/opus',
-  //         clockRate: 48000,
-  //         channels: 2
-  //       },
-  //       {
-  //         kind: 'video',
-  //         mimeType: 'video/VP8',
-  //         clockRate: 90000
-  //       },
-  //       {
-  //         kind: 'video',
-  //         mimeType: 'video/H264',
-  //         clockRate: 90000
-  //       }
-  //     ],
-  //     headerExtensions: [
-  //       {
-  //         kind: 'audio',
-  //         uri: 'urn:ietf:params:rtp-hdrext:sdes:mid',
-  //         preferredId: 1
-  //       },
-  //       {
-  //         kind: 'video',
-  //         uri: 'urn:ietf:params:rtp-hdrext:sdes:mid',
-  //         preferredId: 1
-  //       }
-  //     ]
-  //   };
-  // }
 }
 
 export default WebRTCViewer;
