@@ -65,7 +65,7 @@ function QRCodesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#667eea] to-[#764ba2] p-10">
+    <div className="min-h-screen bg-gradient-to-br from-[#667eea] to-[#764ba2] p-10 overflow-y-auto">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-white text-center mb-10 text-5xl font-bold drop-shadow-lg">
           🎥 Stream RADAR

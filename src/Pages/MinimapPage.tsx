@@ -355,7 +355,7 @@ function MinimapPage() {
   }, []);
 
   return (
-    <div className="w-screen h-screen bg-black flex items-center justify-center overflow-hidden">
+    <div data-no-scroll className="w-screen h-screen bg-black flex items-center justify-center overflow-hidden">
       {error && (
         <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg shadow-lg z-50">
           {error}

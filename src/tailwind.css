@@ -2,14 +2,12 @@
 
 html {
   background: transparent;
-  overflow: hidden;
 }
 
 body {
   margin: 0;
   padding: 0;
   background: transparent;
-  overflow: hidden;
   width: 100vw;
   height: 100vh;
   color: black;
@@ -19,5 +17,13 @@ body {
   width: 100vw;
   height: 100vh;
   background: transparent;
+}
+
+/* Pages that need fixed positioning with no scroll (minimap, widget) */
+body:has([data-no-scroll]) {
+  overflow: hidden;
+}
+
+body:has([data-no-scroll]) #root {
   overflow: hidden;
 }
