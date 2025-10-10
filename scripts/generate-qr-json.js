@@ -7,7 +7,10 @@
 
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+const CRED_TTL = 365 * 24 * 3600;
+const TURN_SECRET = 'ivqidGfbVmUMZY';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,12 +29,27 @@ if (fs.existsSync(envPath)) {
   });
 }
 
+const getTURNCredentials = (id) => {
+  const unixTimeStamp = parseInt(Date.now() / 1000, 10) + (CRED_TTL);
+  const username = [unixTimeStamp, id].join(':');
+  const hmac = crypto.createHmac('sha1', TURN_SECRET);
+
+  hmac.setEncoding('base64');
+  hmac.write(username);
+  hmac.end();
+  const password = hmac.read();
+
+  console.log(username, password, unixTimeStamp);
+  return {
+    username,
+    password,
+  };
+}
+
 // Read configuration from environment variables (same as Vite)
-const WIDGET_HOST = process.env.VITE_WIDGET_HOST || 'https://leo.frp.livelyvideo.tv';
+const WIDGET_HOST = process.env.VITE_WIDGET_HOST || 'https://stream-radar.web.garage.livelyvideo.tv';
 const MS_CTRL_CALLBACK_URL = process.env.VITE_MS_CTRL_CALLBACK_URL || 'https://vulpix.zorro-prod-badlands.nativeframe.com/p/8938/foundation-transcode/msctl';
 const CTRL_CALLBACK_URL = process.env.VITE_CTRL_CALLBACK_URL || 'https://vulpix.zorro-prod-badlands.nativeframe.com/p/8938/foundation-transcode/shmcli';
-
-const STUN_URLS = ['stun:icf-prod-usw2b-turn.livelyvideo.tv:19302'];
 
 // Generate widget URL with query parameters
 function generateWidgetUrl(streamId) {
@@ -45,6 +63,11 @@ function generateWidgetUrl(streamId) {
 
 // Generate JSON payload for a specific player
 function generatePayload(streamId) {
+  const {
+    username,
+    password,
+  } = getTURNCredentials(streamId)
+
   return {
     headers: {},
     metadata: {
@@ -62,7 +85,16 @@ function generatePayload(streamId) {
       ptt: true,
       locationHref: `${CTRL_CALLBACK_URL}/api/v1/settrack`
     },
-    stun_urls: STUN_URLS,
+    ice_servers: [
+      {
+        "urls": ["stun:stun.l.google.com:19302", "stun:stun2.l.google.com:19302"],
+      },
+      {
+        "urls": ["turn:turn.eventdoor.com:80?transport=tcp", "turns:turn.eventdoor.com:443", "turns:turn.eventdoor.com:443?transport=tcp"],
+        "username": username,
+        "credential": password
+      },
+    ],
     whip: `${MS_CTRL_CALLBACK_URL}/api/v1/whip/create/${streamId}`
   };
 }

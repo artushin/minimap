@@ -52,10 +52,13 @@ function MinimapPage() {
   const parseCoordinatesFromResponse = (data: any): Coordinate[] => {
     if (!data.streams) return [];
 
-    // Find and store map stream info
+    console.log('All streams:', data.streams.map((s: any) => ({ name: s.streamName, type: s.sourceType, hasAppData: !!s.appData })));
+
+    // Find and store map stream info (looking for decoded raw video)
     const mapStream = data.streams.find(
       (stream: any) =>
-        stream.sourceType === 'rtp' &&
+        stream.sourceType === 'decoder' &&
+        stream.codec === 'raw' &&
         stream.mediaType === 'video' &&
         stream.streamName === 'map'
     );
@@ -71,7 +74,8 @@ function MinimapPage() {
     const coords: Coordinate[] = [];
     videoStreams.forEach((stream: any, index: number) => {
       if (stream.streamName.indexOf('player') < 0) return;
-      if (stream.sourceType !== 'rtp') return;
+      if (stream.sourceType !== 'decoder') return;
+      if (stream.codec !== 'raw') return;
       if (!stream.appData) return;
 
       try {
@@ -146,9 +150,13 @@ function MinimapPage() {
       west = Math.min(west, coord.longitude);
     });
 
-    // Add padding (10%)
-    const latPadding = (north - south) * 0.1;
-    const lngPadding = (east - west) * 0.1;
+    // Add padding (10% or minimum fixed padding for single point)
+    const latDiff = north - south;
+    const lngDiff = east - west;
+    const minPadding = 0.001; // ~100m at equator
+
+    const latPadding = latDiff > 0 ? latDiff * 0.1 : minPadding;
+    const lngPadding = lngDiff > 0 ? lngDiff * 0.1 : minPadding;
 
     return {
       north: north + latPadding,
@@ -192,23 +200,64 @@ function MinimapPage() {
     return { x, y };
   };
 
+  const pixelToLatLng = (x: number, y: number, zoom: number, center: { lat: number; lng: number }, canvasWidth: number, canvasHeight: number) => {
+    const centerTileX = lon2tile(center.lng, zoom);
+    const centerTileY = lat2tile(center.lat, zoom);
+
+    const pixelOffsetX = x - canvasWidth / 2;
+    const pixelOffsetY = y - canvasHeight / 2;
+
+    const tileX = centerTileX + pixelOffsetX / TILE_SIZE;
+    const tileY = centerTileY + pixelOffsetY / TILE_SIZE;
+
+    const n = Math.pow(2, zoom);
+    const lng = (tileX / n) * 360 - 180;
+    const lat = (Math.atan(Math.sinh(Math.PI * (1 - 2 * tileY / n))) * 180) / Math.PI;
+
+    return { lat, lng };
+  };
+
   const postMapBounds = async () => {
+    console.log('postMapBounds called', {
+      fullName: mapStreamInfoRef.current.fullName,
+      channelId: mapStreamInfoRef.current.channelId,
+      bounds: boundsRef.current
+    });
+
     if (!mapStreamInfoRef.current.fullName || !mapStreamInfoRef.current.channelId) {
       console.warn('Map stream info not yet loaded, skipping postMapBounds');
       return;
     }
 
-    const bounds = boundsRef.current;
-    if (!bounds) return;
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.warn('Canvas not available, skipping postMapBounds');
+      return;
+    }
+
+    console.log('Posting bounds. Coordinates count:', coordinatesRef.current.length);
+
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const zoom = zoomRef.current;
+    const center = centerRef.current;
+
+    // Calculate the actual lat/lng coordinates for the four corners of the canvas
+    const topLeft = pixelToLatLng(0, 0, zoom, center, canvasWidth, canvasHeight);
+    const bottomLeft = pixelToLatLng(0, canvasHeight, zoom, center, canvasWidth, canvasHeight);
+    const topRight = pixelToLatLng(canvasWidth, 0, zoom, center, canvasWidth, canvasHeight);
+    const bottomRight = pixelToLatLng(canvasWidth, canvasHeight, zoom, center, canvasWidth, canvasHeight);
 
     const payload = {
-      tl: { lat: bounds.north, long: bounds.west },
-      bl: { lat: bounds.south, long: bounds.west },
-      tr: { lat: bounds.north, long: bounds.east },
-      br: { lat: bounds.south, long: bounds.east },
+      tl: { lat: topLeft.lat, long: topLeft.lng },
+      bl: { lat: bottomLeft.lat, long: bottomLeft.lng },
+      tr: { lat: topRight.lat, long: topRight.lng },
+      br: { lat: bottomRight.lat, long: bottomRight.lng },
       w: 720,
       h: 1080,
     };
+
+    console.log('Payload:', payload);
 
     try {
       await fetch(`${CTRL_CALLBACK_URL}/api/v1/setchannelappdata`, {
@@ -345,7 +394,10 @@ function MinimapPage() {
 
     // Start polling
     const pollInterval = setInterval(pollCoordinates, POLL_INTERVAL);
-    const boundsInterval = setInterval(postMapBounds, 5000);
+    const boundsInterval = setInterval(() => {
+      console.log('boundsInterval firing');
+      postMapBounds();
+    }, 5000);
 
     return () => {
       window.removeEventListener('resize', updateCanvasSize);
